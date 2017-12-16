@@ -1,0 +1,155 @@
+// Imports
+package me.landon.swearjar;
+import net.milkbowl.vault.economy.Economy;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Sound;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.plugin.RegisteredServiceProvider;
+import org.bukkit.plugin.java.JavaPlugin;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+// Code
+public class Main extends JavaPlugin implements Listener {
+
+    public static Economy econ = null;
+
+    // Plugin Enable
+    @Override
+    public void onEnable() {
+        if (!setupEconomy()) {
+            Bukkit.getPluginManager().disablePlugin(this);
+        }
+            System.out.println("[SwearJar] Running version 1.0.");
+            this.getConfig().options().copyDefaults();
+            saveDefaultConfig();
+            Bukkit.getPluginManager().registerEvents(this, this);
+        }
+
+    // Setup Vault
+    private boolean setupEconomy() {
+
+        if (Bukkit.getPluginManager().getPlugin("Vault") == null) {
+            return false;
+        }
+        RegisteredServiceProvider<Economy> rsp = Bukkit.getServicesManager().getRegistration(Economy.class);
+        if (rsp == null) {
+            return false;
+        }
+        econ = rsp.getProvider();
+        return econ != null;
+    }
+
+    // Blacklist
+    List<String> swearwords = this.getConfig().getStringList("swearwords");
+    int cost = this.getConfig().getInt("cost");
+
+    // Check for Swear Words
+    @EventHandler
+    public void swearjar(AsyncPlayerChatEvent e) {
+        Player player = e.getPlayer();
+        for (String swears : swearwords) {
+            if (e.getMessage().toLowerCase().contains(swears.toLowerCase())) {
+                if (player.hasPermission("swearjar.bypass")) return;
+
+                String message = e.getMessage().toLowerCase();
+                Matcher m = Pattern.compile("\\b"+swears.toLowerCase()+"\\b").matcher(message);
+
+                int matches = 0;
+                while(m.find())
+                    matches++;
+
+                int newcost = cost * matches;
+                String cmessage = getConfig().getString("message").replace("%amount%", Integer.toString(matches)).replace("%cost%", Integer.toString(newcost)).replace("%player%", player.getName());
+
+                if (econ.getBalance(player) > newcost) {
+                    player.playSound(player.getLocation(), Sound.ITEM_PICKUP, 3.0F, 0.5F);
+                    econ.withdrawPlayer(player, newcost);
+                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', cmessage));
+                } else {
+                    e.setCancelled(true);
+                    player.sendMessage(ChatColor.RED + "You don't have enough money to swear!");
+                    player.playSound(player.getLocation(), Sound.ITEM_PICKUP, 3.0F, 0.5F);
+                }
+            }
+        }
+    }
+
+    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        if (cmd.getName().equalsIgnoreCase("swearjar")) {
+            if (sender instanceof Player) {
+                Player player = (Player) sender;
+                if (player.hasPermission("swearjar.admin")) {
+                    int argumentCount = args.length;
+                    switch (argumentCount) {
+                        case 0:
+                            player.sendMessage(ChatColor.GREEN + "§m----------" + ChatColor.GRAY + "[" + "SwearJar" + ChatColor.GRAY + "]" + ChatColor.GREEN + "§m----------");
+                            player.sendMessage("");
+                            player.sendMessage(ChatColor.GREEN + "/swearjar - Access all commands.");
+                            player.sendMessage(ChatColor.GREEN + "/swearjar reload - Reload the config.");
+                            player.sendMessage(ChatColor.GREEN + "/swearjar <add/remove> <word> - Add or remove a word.");
+                            player.sendMessage("");
+                            player.sendMessage(ChatColor.GREEN + "§m----------" + ChatColor.GRAY + "[" + "SwearJar" + ChatColor.GRAY + "]" + ChatColor.GREEN + "§m----------");
+                            break;
+                        case 1:
+                            String firstArg1 = args[0].toLowerCase();
+                            if (firstArg1.equals("reload")) {
+                                this.saveConfig();
+                                this.reloadConfig();
+                                player.sendMessage(ChatColor.GREEN + "SwearJar configuration file reloaded.");
+                            } else if (firstArg1.equals("add")) {
+                                player.sendMessage(ChatColor.GRAY + "Correct Usage: /swearjar add <word>");
+                            } else if (firstArg1.equals("remove")) {
+                                player.sendMessage(ChatColor.GRAY + "Correct Usage: /swearjar remove <word>");
+                            } else {
+                                player.sendMessage(ChatColor.GRAY + "Invalid Usage. Use /swearjar for all commands.");
+                            }
+                            break;
+                        case 2:
+                            String firstArg2 = args[0].toLowerCase();
+                            if (firstArg2.equals("add")) {
+                                player.sendMessage(ChatColor.GREEN + args[1] + " added as a swear word.");
+                                swearwords.add(args[1]);
+                                this.getConfig().set("swears", swearwords);
+                                this.saveConfig();
+                                this.reloadConfig();
+                            } else if (firstArg2.equals("remove")) {
+                                player.sendMessage(ChatColor.RED + args[1] + " removed as a swear word.");
+                                swearwords.remove(args[1]);
+                                this.getConfig().set("swears", swearwords);
+                                this.saveConfig();
+                                this.reloadConfig();
+                            } else {
+                                player.sendMessage(ChatColor.GRAY + "Invalid Usage. Use /swearjar for all commands.");
+                            }
+                            break;
+                        default:
+                            player.sendMessage(ChatColor.GREEN + "§m----------" + ChatColor.GRAY + "[" + "SwearJar" + ChatColor.GRAY + "]" + ChatColor.GREEN + "§m----------");
+                            player.sendMessage("");
+                            player.sendMessage(ChatColor.GREEN + "/swearjar - Access all commands.");
+                            player.sendMessage(ChatColor.GREEN + "/swearjar reload - Reload the config.");
+                            player.sendMessage(ChatColor.GREEN + "/swearjar <add/remove> <word> - Add or remove a word.");
+                            player.sendMessage("");
+                            player.sendMessage(ChatColor.GREEN + "§m----------" + ChatColor.GRAY + "[" + "SwearJar" + ChatColor.GRAY + "]" + ChatColor.GREEN + "§m----------");
+                            break;
+                    }
+                } else {
+                    player.sendMessage(ChatColor.RED + "You don't have permission!");
+                    return true;
+                }
+            } else {
+                this.saveConfig();
+                this.reloadConfig();
+                sender.sendMessage(ChatColor.GREEN + "SwearJar configuration file reloaded.");
+                return true;
+            }
+        } return false;
+    }
+}
