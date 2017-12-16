@@ -1,0 +1,8 @@
+name: SwearJar
+version: 1.0
+main: me.landon.swearjar.Main
+depend: [Vault]
+commands:
+  swearjar:
+    aliases: []
+    description: SwearJar base commands.
